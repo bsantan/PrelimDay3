@@ -8,6 +8,7 @@ import csv
 import pandas as pd
 import heapq
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 #Define arguments for each required and optional input
 def defineArguments():
@@ -141,7 +142,7 @@ def find_centers(top_kmer_dict):
 
     return cluster_centers,combined_clusters
 
-def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters):
+def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,OutputDirectory):
 
     for i in range(len(top_kmer_dict)):
         
@@ -181,6 +182,8 @@ def cluster_histogram(protein_clusters_df,OutputDirectory):
     plt.savefig(OutputDirectory+"/ClusterHistogram.png",bbox_inches='tight')
     plt.clf()
 
+
+##Takes forever, probably won't do
 ##Create files for Cytoscape
 def create_cluster_edge_list(combined_clusters,protein_clusters_df):
 
@@ -188,7 +191,7 @@ def create_cluster_edge_list(combined_clusters,protein_clusters_df):
 
     for i in list(combined_clusters.values()):
         clusters_set = protein_clusters_df.loc[protein_clusters_df['Cluster'] == i]
-        for j in range(len(clusters_set)):
+        for j in range(len(clusters_set)-1):
             list_range = [item for item in range(j+1, len(clusters_set))]
             for k in list_range:
                 clusters_edge_list = clusters_edge_list.append({'Source':clusters_set['Locus'].iloc[j],'Target':clusters_set['Locus'].iloc[k]},ignore_index=True)
@@ -202,6 +205,39 @@ def output_cytoscape_files(clusters_edge_list,cluster_file,OutputDirectory):
     cluster_file.to_csv(OutputDirectory+"/Clusters_Metadata.noa", index = False)
 
 
+def prepare_heatmap(protein_clusters_meta_df,OutputDirectory):
+
+    #Combine all territories/region by country
+    for i in range(len(protein_clusters_meta_df)):
+        string = protein_clusters_meta_df['Location'][i].split(':')
+        protein_clusters_meta_df['Location'][i] = string[0]
+
+    #Output histogram of counts per country
+    y = list(protein_clusters_meta_df['Location'])
+    plt.hist(list(protein_clusters_meta_df['Location']),bins = len(set(y)))
+    plt.xticks(rotation='vertical')
+    plt.savefig(OutputDirectory+"/Location_Frequency.png")
+    plt.clf()
+
+    #Get frequency of just each country to normalize
+    total_loc_df = protein_clusters_meta_df.groupby(['Location']).size().reset_index(name='TotalFrequency')
+
+    #Get frequency of each occurance of location/cluster combo
+    protein_clusters_loc_df = protein_clusters_meta_df.groupby(['Location', 'Cluster']).size().reset_index(name='ClusterFrequency')
+
+    #Merge the 2 and calculate the % count per each location
+    protein_clusters_loc_df = protein_clusters_loc_df.merge(total_loc_df,how='left', on='Location')
+    protein_clusters_loc_df['NormFrequency'] = protein_clusters_loc_df['ClusterFrequency']/protein_clusters_loc_df['TotalFrequency']
+
+    protein_clusters_loc_heatmap = pd.pivot_table(protein_clusters_loc_df,values='NormFrequency',index=['Location'], columns='Cluster')
+
+    return protein_clusters_loc_heatmap
+
+def generate_heatmap(protein_clusters_loc_heatmap,OutputDirectory):
+
+    #Generate heatmap
+    fig = sns.heatmap(protein_clusters_loc_heatmap, cmap="YlGnBu")
+    fig.savefig(OutputDirectory+"/ClusterLocation_Heatmap.png")
 
 def main():
 
@@ -236,7 +272,7 @@ def main():
     #Assign Clusters
     unique_hash = assign_clusters(top_kmer_dict)
     cluster_centers,combined_clusters = find_centers(top_kmer_dict)
-    protein_clusters_df,protein_clusters_meta_df = reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters)
+    protein_clusters_df,protein_clusters_meta_df = reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,OutputDirectory)
 
     print("Clusters assigned: ",datetime.now())
 
@@ -245,9 +281,13 @@ def main():
     output_cluster_file(protein_clusters_meta_df,OutputDirectory)
     cluster_histogram(protein_clusters_df,OutputDirectory)
 
-    #Cytoscape
-    cluster_edge_list = create_cluster_edge_list(combined_clusters,protein_clusters_df)
-    output_cytoscape_files(clusters_edge_list,cluster_file,OutputDirectory)
+    #Cytoscape: Takes a long time
+    #cluster_edge_list = create_cluster_edge_list(combined_clusters,protein_clusters_df)
+    #output_cytoscape_files(clusters_edge_list,cluster_file,OutputDirectory)
+
+    #Generate heatmap
+    protein_clusters_loc_heatmap = prepare_heatmap(protein_clusters_meta_df,OutputDirectory)
+    generate_heatmap(protein_clusters_loc_heatmap,OutputDirectory)
 
     endtime = datetime.now()
     tdelta = endtime-starttime
