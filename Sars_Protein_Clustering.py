@@ -122,7 +122,7 @@ def find_centers(top_kmer_dict):
         seq_lengths = [x['Seq_length'] for x in clust_kmer_dict] 
         top_length = max(seq_lengths)
         
-        #Get first seq length that matches the top one
+        #Get first seq length that matches the longest sequence length identified
         for j in range(len(clust_kmer_dict)):
             if(clust_kmer_dict[j]['Seq_length'] == top_length):
                 cluster_centers[clust_kmer_dict[j]['Cluster']] = clust_kmer_dict[j]['Locus']
@@ -133,6 +133,7 @@ def find_centers(top_kmer_dict):
     all_centers = pd.DataFrame(cluster_centers.values())
     all_centers = all_centers.drop_duplicates()
     all_centers = all_centers.reset_index(drop=True)
+
     combined_clusters = {}
 
     clust = 1
@@ -140,6 +141,7 @@ def find_centers(top_kmer_dict):
         combined_clusters[i] = clust
         clust += 1
 
+    print(combined_clusters)
     return cluster_centers,combined_clusters
 
 def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,OutputDirectory):
@@ -150,8 +152,10 @@ def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,Out
         if(top_kmer_dict[i]['Locus'] != cluster_centers[top_kmer_dict[i]['Cluster']]):
             #Which locus does the cluster belong to
             center_locus = cluster_centers[top_kmer_dict[i]['Cluster']]
+            #Reassign cluster value
             top_kmer_dict[i]['Cluster'] = combined_clusters[center_locus]
         else:
+            #Reassign cluster value
             top_kmer_dict[i]['Cluster'] = combined_clusters[top_kmer_dict[i]['Locus']]
     
     #Convert to dataframe with only locus and cluster assignment
@@ -166,10 +170,6 @@ def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,Out
     protein_clusters_meta_df.to_csv(OutputDirectory+"/Clusters_Meta.csv", index = False)
 
     return protein_clusters_df,protein_clusters_meta_df
-
-def output_cluster_file(cluster_file,OutputDirectory):
-
-    cluster_file.to_csv(OutputDirectory+"/Clusters.csv", index = False)
 
 def cluster_histogram(protein_clusters_df,OutputDirectory):
 
@@ -236,7 +236,8 @@ def prepare_heatmap(protein_clusters_meta_df,OutputDirectory):
 def generate_heatmap(protein_clusters_loc_heatmap,OutputDirectory):
 
     #Generate heatmap
-    fig = sns.heatmap(protein_clusters_loc_heatmap, cmap="YlGnBu")
+    sns_plot = sns.heatmap(protein_clusters_loc_heatmap, cmap="YlGnBu")
+    fig = sns_plot.get_figure()
     fig.savefig(OutputDirectory+"/ClusterLocation_Heatmap.png")
 
 def main():
@@ -277,8 +278,6 @@ def main():
     print("Clusters assigned: ",datetime.now())
 
     #Outputs
-    output_cluster_file(protein_clusters_df,OutputDirectory)
-    output_cluster_file(protein_clusters_meta_df,OutputDirectory)
     cluster_histogram(protein_clusters_df,OutputDirectory)
 
     #Cytoscape: Takes a long time
