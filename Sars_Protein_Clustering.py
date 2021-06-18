@@ -9,13 +9,18 @@ import pandas as pd
 import heapq
 import matplotlib.pyplot as plt
 import seaborn as sns
+import re
 
 #Define arguments for each required and optional input
 def defineArguments():
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--gb-processed-file",  dest="GbProcessedFile",required=True,help="GbProcessedFile")
-    parser.add_argument("--clustering-only",  dest="ClusterOnly",required=False,action="store_true",help="ClusterOnly")
+    ##Need to add logic for how to handle these entries
+    #When provided, will use output as gbData
+    parser.add_argument("--gb-original-file",  dest="GbOriginalFile",required=False,help="GbOriginalFile")
+    parser.add_argument("--output-processed-file",  dest="OutputProcessedFile",required=False,action="store_true",help="OutputProcessedFile")
+    #When provided, will not perform parsing on original genBank file
+    parser.add_argument("--gb-processed-file",  dest="GbProcessedFile",required=False,help="GbProcessedFile")
     parser.add_argument("--kmer-size", dest="KmerSize",required=False,default=10,help="KmerSize",type=int)
     parser.add_argument("--num-kmers-per-sequence", dest="NumKmersPerSequence",required=False,default=10,help="NumKmersPerSequence",type=int)
     parser.add_argument("--num-clusters", dest="NumClusters",required=False,default=10,help="NumClusters",type=int)
@@ -23,7 +28,84 @@ def defineArguments():
 
     return parser
 
-def parse_files(GbProcessedFile):
+def parse_original_file(GbOriginalFile):
+
+    f = open(GbOriginalFile, "r")
+
+    S_entries = []
+    #Initialize the dict once
+    entry_dict = {}
+    desired_gene = False
+    getting_protein = False
+    seq = ''
+
+    for i,line in enumerate(f):
+        line = line.strip()
+        values = line.split()
+        if values:
+            #Get all necessary items for this entry
+            if values[0].lower() == 'accession':
+                entry_dict['LOCUS'] = values[1]
+            if 'country' in values[0].lower():
+                #For USA locations with state listed
+                if ":" in line:
+                    values[0] = values[0]+values[1]
+                #Get string inside quotation marks
+                entry_dict['Location'] = re.findall('"([^"]*)"',values[0])[0]
+            if 'collection_date' in values[0].lower():
+                #Get string inside quotation marks
+                entry_dict['collectionDate'] = re.findall('"([^"]*)"',values[0])[0]
+            
+            #Check if entry is of S protein and continue searching for next protein sequence
+            if 'gene="s"' in values[0].lower():
+                #Ensures only 1 protein sequence that matches S gene is found
+                desired_gene = True
+                
+            if desired_gene is True:
+                if 'translation' in values[0].lower():
+                    #First check if protein is short and both double quotes are preset
+                    if values[0].count('"') == 2:
+                        #Get string inside quotation marks
+                        entry_dict['AAsequence'] = re.findall('"([^"]*)"',values[0])[0]
+                        #Only add entry if S protein was found
+                        S_entries.append(entry_dict)
+                        desired_gene = False
+                        #Ensures that only lines that are part of protein sequence are appended
+                        getting_protein = False
+                        #Reset dict only after S protein has been found
+                        entry_dict = {}
+                        seq = ''
+                    #Otherwise get first line of protein sequence
+                    else:
+                        seq = seq+line.split('"')[1]
+                        print(seq)
+                        getting_protein = True
+                #Append all subsequence lines to protein sequence without ending quote
+                if '"' not in line and getting_protein is True:
+                    seq = seq+line
+                #Append last line to protein sequence with ending quote
+                if '"' in line and 'translation' not in line and getting_protein is True:
+                    line = line.split('"')[0]
+                    seq = seq+line
+                    entry_dict['AAsequence'] = seq
+                    #Only add entry if S protein was found
+                    S_entries.append(entry_dict)
+                    desired_gene = False
+                    getting_protein = False
+                    #Reset dict only after S protein has been found
+                    entry_dict = {}
+                    seq = ''
+    
+    #Convert list of entries to dataframe to easily save as file and use for analysis
+    gbData_generated = pd.DataFrame(S_entries)
+    
+    return gbData_generated
+
+def generate_processed_file(gbData_generated,OutputDirectory):
+
+    gbData_generated.to_csv(OutputDirectory+"/sarsS_new.gb.processed.tsv", sep ='\t',index = False)
+
+def parse_processed_file(GbProcessedFile):
 
     gbData = pd.read_csv(GbProcessedFile, sep = '\t')
 
@@ -246,20 +328,40 @@ def main():
     parser = defineArguments()
     args = parser.parse_args()
     
+    GbOriginalFile = args.GbOriginalFile
     GbProcessedFile = args.GbProcessedFile
-    ClusterOnly = args.ClusterOnly
+    OutputProcessedFile = args.OutputProcessedFile
     KmerSize = args.KmerSize
     NumKmersPerSequence = args.NumKmersPerSequence
     NumClusters = args.NumClusters
     OutputDirectory = args.OutputDirectory
 
     #Command expected to execute the script
-    cmd = "--gb-processed-file %s --kmer-size %i --num-kmers-per-sequence %i --num-clusters %i --output-directory %s" % (GbProcessedFile,KmerSize,NumKmersPerSequence,NumClusters,OutputDirectory)
+    cmd = "--gb-original-file %s --output-processed-file %s --gb-processed-file %s --kmer-size %i --num-kmers-per-sequence %i --num-clusters %i --output-directory %s" % (GbOriginalFile,GbProcessedFile,OutputProcessedFile,KmerSize,NumKmersPerSequence,NumClusters,OutputDirectory)
 
     starttime = datetime.now()
     print("Sars_Protein_Clustering Start Time: ",starttime)
 
-    gbData = parse_files(GbProcessedFile)
+    #Ensure conflicting options are not provided
+    if args.GbOriginalFile and args.GbProcessedFile:
+        print("Conflicting options specified. Only specify original GenBank file or processed GenBank file to be analyzed. Exiting script.")
+        sys.exit()
+
+    if args.OutputProcessedFile and args.GbProcessedFile:
+        print("Conflicting options specified. Processed GenBank file can only be generated when original GenBank file is provided without existing processed GenBank file. Exiting script.")
+        sys.exit()
+
+    #Parse and use original genBank file for analysis if provided
+    if args.GbOriginalFile:
+        gbData = parse_original_file(GbOriginalFile)
+
+        #Output resulting processed file if specified
+        if args.OutputProcessedFile:
+            generate_processed_file(gbData,OutputDirectory)
+
+    #Use processed genBank file for analysis if provided
+    else:
+        gbData = parse_processed_file(GbProcessedFile)
 
     #Prepare sequences
     AAhash = declare_AA_alphabet()
