@@ -10,6 +10,8 @@ import heapq
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
+import sys
+import dateutil.parser
 
 #Define arguments for each required and optional input
 def defineArguments():
@@ -40,7 +42,9 @@ def parse_original_file(GbOriginalFile):
     seq = ''
 
     for i,line in enumerate(f):
+        #Manage empty lines
         line = line.strip()
+        #Extracted tab delimited values
         values = line.split()
         if values:
             #Get all necessary items for this entry
@@ -78,7 +82,6 @@ def parse_original_file(GbOriginalFile):
                     #Otherwise get first line of protein sequence
                     else:
                         seq = seq+line.split('"')[1]
-                        print(seq)
                         getting_protein = True
                 #Append all subsequence lines to protein sequence without ending quote
                 if '"' not in line and getting_protein is True:
@@ -174,40 +177,48 @@ def compute_kmer_hashes(gbData,KmerSize,NumKmersPerSequence):
         all_kmer_dict = [d for d in all_kmer_dict if d['Kmer_hash'] in top_vals]
             
         top_kmer_dict = top_kmer_dict + all_kmer_dict
+    
+    top_kmer_dict = pd.DataFrame(top_kmer_dict)
 
     return top_kmer_dict
 
 def assign_clusters(top_kmer_dict):
 
     unique_hash = []
+    top_kmer_dict['Cluster'] = None
 
     for i in range(len(top_kmer_dict)):
-        if(top_kmer_dict[i]['Kmer_hash'] not in unique_hash):
-            unique_hash.append(top_kmer_dict[i]['Kmer_hash'])
-            top_kmer_dict[i]['Cluster'] = (unique_hash.index(top_kmer_dict[i]['Kmer_hash'])+1)
+        if(top_kmer_dict['Kmer_hash'][i] not in unique_hash):
+            unique_hash.append(top_kmer_dict['Kmer_hash'][i])
+            top_kmer_dict['Cluster'][i] = (unique_hash.index(top_kmer_dict['Kmer_hash'][i])+1)
         else:
-            top_kmer_dict[i]['Cluster'] = (unique_hash.index(top_kmer_dict[i]['Kmer_hash'])+1)
+            top_kmer_dict['Cluster'][i] = (unique_hash.index(top_kmer_dict['Kmer_hash'][i])+1)
 
     return unique_hash
 
 def find_centers(top_kmer_dict):
 
-    all_clusters = [x['Cluster'] for x in top_kmer_dict]
-    unique_clusters = set(all_clusters)
+    unique_clusters = top_kmer_dict.Cluster.unique()
+    #all_clusters = [x['Cluster'] for x in top_kmer_dict]
+    #unique_clusters = set(all_clusters)
 
     cluster_centers = {}
 
     for i in unique_clusters:
-        #val = {}
-        cluster = [i]
-        clust_kmer_dict = [d for d in top_kmer_dict if d['Cluster'] in cluster]
-        seq_lengths = [x['Seq_length'] for x in clust_kmer_dict] 
-        top_length = max(seq_lengths)
+        #cluster = [i]
+        #clust_kmer_dict = [d for d in top_kmer_dict if d['Cluster'] in cluster]
+        cluster_kmer_df = top_kmer_dict.loc[top_kmer_dict['Cluster'] == i].reset_index()
+        #seq_lengths = [x['Seq_length'] for x in clust_kmer_dict] 
+        #top_length = max(seq_lengths)
+        top_length = max(cluster_kmer_df['Seq_length'])
         
         #Get first seq length that matches the longest sequence length identified
-        for j in range(len(clust_kmer_dict)):
-            if(clust_kmer_dict[j]['Seq_length'] == top_length):
-                cluster_centers[clust_kmer_dict[j]['Cluster']] = clust_kmer_dict[j]['Locus']
+        #for j in range(len(clust_kmer_dict)):
+        for j in range(len(cluster_kmer_df)):
+            #if(clust_kmer_dict[j]['Seq_length'] == top_length):
+            #    cluster_centers[clust_kmer_dict[j]['Cluster']] = clust_kmer_dict[j]['Locus']
+            if(cluster_kmer_df['Seq_length'][j] == top_length):
+                cluster_centers[cluster_kmer_df['Cluster'][j]] = cluster_kmer_df['Locus'][j]
                 #Only use first sequence of that length
                 break
 
@@ -223,43 +234,58 @@ def find_centers(top_kmer_dict):
         combined_clusters[i] = clust
         clust += 1
 
-    print(combined_clusters)
+    #print(combined_clusters)
     return cluster_centers,combined_clusters
 
 def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,OutputDirectory):
 
+    '''
     for i in range(len(top_kmer_dict)):
         
         #If locus is not center locus for this cluster
-        if(top_kmer_dict[i]['Locus'] != cluster_centers[top_kmer_dict[i]['Cluster']]):
+        if(top_kmer_dict['Locus'][i] != cluster_centers[top_kmer_dict['Cluster'][i]]):
             #Which locus does the cluster belong to
             center_locus = cluster_centers[top_kmer_dict[i]['Cluster']]
             #Reassign cluster value
-            top_kmer_dict[i]['Cluster'] = combined_clusters[center_locus]
+            top_kmer_dict['Cluster'][i] = combined_clusters[center_locus]
         else:
             #Reassign cluster value
-            top_kmer_dict[i]['Cluster'] = combined_clusters[top_kmer_dict[i]['Locus']]
+            top_kmer_dict['Cluster'][i] = combined_clusters[top_kmer_dict['Locus'][i]]
     
     #Convert to dataframe with only locus and cluster assignment
     protein_clusters_df = pd.DataFrame(pd.DataFrame(top_kmer_dict), columns = ['Locus','Cluster'])
     protein_clusters_df = protein_clusters_df.drop_duplicates(subset=['Locus'])
     protein_clusters_df = protein_clusters_df.reset_index(drop=True)
+    '''
+    unique_locus = top_kmer_dict.Locus.unique()
+    #Will contain each unique locus and its new cluster assignment 
+    protein_clusters_df = pd.DataFrame()
 
+    for i in unique_locus:
+        #locus_set = pd.DataFrame(top_kmer_dict).loc[pd.DataFrame(top_kmer_dict)['Locus'] == i]
+        locus_set = top_kmer_dict.loc[top_kmer_dict['Locus'] == i]
+        if(len(locus_set.Cluster.unique()) > 1):
+            selected_cluster = locus_set['Cluster'].value_counts().idxmax()
+        else: selected_cluster = locus_set['Cluster'].iloc[0]
+        protein_clusters_df = protein_clusters_df.append({'Locus':i,'Seq_length':locus_set['Seq_length'].iloc[0],'Cluster':selected_cluster},ignore_index=True)
+    
     #Add metadata
     protein_clusters_meta_df = pd.concat([protein_clusters_df,gbData[['Location', 'collectionDate']].reset_index(drop=True)],axis=1)
 
     protein_clusters_df.to_csv(OutputDirectory+"/Clusters.csv", index = False)
-    protein_clusters_meta_df.to_csv(OutputDirectory+"/Clusters_Meta.csv", index = False)
 
     return protein_clusters_df,protein_clusters_meta_df
 
-def cluster_histogram(protein_clusters_df,OutputDirectory):
+def generate_cluster_histogram(protein_clusters_df,OutputDirectory):
 
+    #Get unique set of clusters
     x = list(protein_clusters_df['Cluster'])
 
     plt.hist(list(protein_clusters_df['Cluster']),bins = len(set(x)))
     axes = plt.gca()
-    axes.set_ylim([0,1500])
+    #axes.set_ylim([0,1500])
+    plt.title('Number of Proteins per Cluster', fontsize=10)
+    plt.xticks(rotation='vertical')
     #Save figure to user specified output folder.
     plt.savefig(OutputDirectory+"/ClusterHistogram.png",bbox_inches='tight')
     plt.clf()
@@ -287,31 +313,101 @@ def output_cytoscape_files(clusters_edge_list,cluster_file,OutputDirectory):
     cluster_file.to_csv(OutputDirectory+"/Clusters_Metadata.noa", index = False)
 
 
-def prepare_heatmap(protein_clusters_meta_df,OutputDirectory):
+def eval_location_frequency(protein_clusters_meta_df,OutputDirectory):
+
+    protein_clusters_meta_df['General_Location'] = None
 
     #Combine all territories/region by country
     for i in range(len(protein_clusters_meta_df)):
         string = protein_clusters_meta_df['Location'][i].split(':')
-        protein_clusters_meta_df['Location'][i] = string[0]
+        protein_clusters_meta_df['General_Location'][i] = string[0]
 
     #Output histogram of counts per country
-    y = list(protein_clusters_meta_df['Location'])
-    plt.hist(list(protein_clusters_meta_df['Location']),bins = len(set(y)))
+    y = list(protein_clusters_meta_df['General_Location'])
+    plt.hist(list(protein_clusters_meta_df['General_Location']),bins = len(set(y)))
     plt.xticks(rotation='vertical')
+    plt.title('Number of Samples per Location', fontsize=10)
     plt.savefig(OutputDirectory+"/Location_Frequency.png")
     plt.clf()
 
-    #Get frequency of just each country to normalize
+def get_avg_dates(protein_clusters_meta_df,OutputDirectory):
+
+    #Convert all dates to datetime
+    for i in range(len(protein_clusters_meta_df)):
+        protein_clusters_meta_df['collectionDate'][i] = dateutil.parser.parse(protein_clusters_meta_df['collectionDate'][i])
+
+    #Find average date per cluster
+    #Get only unique clusters
+    #unique_final_clusters = set(d['Cluster'] for d in top_kmer_dict)
+    unique_final_clusters = protein_clusters_meta_df.Cluster.unique()
+    #Create dict for avg date of each cluster
+    avg_date = {}
+
+    for i in unique_final_clusters:
+        clusters_set = protein_clusters_meta_df.loc[protein_clusters_meta_df['Cluster'] == i]
+        upper_d = max(clusters_set['collectionDate'])
+        lower_d = min(clusters_set['collectionDate'])
+        avg_d = lower_d+((upper_d-lower_d)//2)
+        
+        avg_date[i] = avg_d
+        
+    #Assign average dates to each cluster
+    protein_clusters_meta_df['avgCollectionDate'] = None
+
+    for i in range(len(protein_clusters_meta_df)):
+        protein_clusters_meta_df['avgCollectionDate'][i] = avg_date[protein_clusters_meta_df['Cluster'][i]]
+
+    protein_clusters_meta_df.to_csv(OutputDirectory+"/Clusters_Meta.csv", index = False)
+
+    return protein_clusters_meta_df
+
+def plot_clusters_avg_date(protein_clusters_meta_df,OutputDirectory):
+
+    protein_clusters_meta_df.sort_values(by=['avgCollectionDate'],inplace=True,ascending=True)
+    protein_clusters_meta_df['Cluster'] = protein_clusters_meta_df['Cluster'].astype(str)
+
+    plt.scatter(protein_clusters_meta_df['Cluster'],protein_clusters_meta_df['avgCollectionDate'])
+    plt.xlabel("Cluster")
+    plt.ylabel("Average Date")
+    plt.title('Average Date Per Cluster', fontsize=10)
+    plt.savefig(OutputDirectory+"/Clusters_Average_Date.png")
+    plt.clf()
+
+def plot_samples_over_time(protein_clusters_meta_df,OutputDirectory):
+
+    plt.hist(protein_clusters_meta_df['collectionDate'],bins=50)
+    plt.xlabel("Date Collected")
+    plt.ylabel("# Samples")
+    plt.title('Number of Samples Collected Over Time', fontsize=10)
+    plt.xticks(rotation='vertical')
+    plt.savefig(OutputDirectory+"/Date_Frequency.png")
+    plt.clf()
+
+def prepare_heatmap(protein_clusters_meta_df):
+
+    #Get frequency of just each country across all clusters to normalize (TotalFrequency)
     total_loc_df = protein_clusters_meta_df.groupby(['Location']).size().reset_index(name='TotalFrequency')
 
-    #Get frequency of each occurance of location/cluster combo
+    #Get frequency of each country for each cluster (ClusterFrequency)
     protein_clusters_loc_df = protein_clusters_meta_df.groupby(['Location', 'Cluster']).size().reset_index(name='ClusterFrequency')
 
-    #Merge the 2 and calculate the % count per each location
+    #Merge the 2 for calculation purposes (NormFrequency), and include avgCollectionDate
     protein_clusters_loc_df = protein_clusters_loc_df.merge(total_loc_df,how='left', on='Location')
+    protein_clusters_loc_df = protein_clusters_loc_df.merge(protein_clusters_meta_df[['Cluster','avgCollectionDate']],how='left', on='Cluster')
     protein_clusters_loc_df['NormFrequency'] = protein_clusters_loc_df['ClusterFrequency']/protein_clusters_loc_df['TotalFrequency']
 
+    #Sort clusters by average date
+    protein_clusters_loc_df.sort_values(by=['avgCollectionDate'],inplace=True,ascending=True)
+    #Convert Cluster name to string to use these as categorical values
+    protein_clusters_loc_df['Cluster'] = protein_clusters_loc_df['Cluster'].astype(str)
+
+    #Generate heatmap for normalized frequency of each county per cluster
     protein_clusters_loc_heatmap = pd.pivot_table(protein_clusters_loc_df,values='NormFrequency',index=['Location'], columns='Cluster')
+
+    #Reorder so that clusters go by ascending average date 
+    all_clusters = protein_clusters_loc_df['Cluster'].drop_duplicates()
+    all_clusters = list(all_clusters.reset_index(drop=True))
+    protein_clusters_loc_heatmap = protein_clusters_loc_heatmap.reindex(all_clusters, axis=1)
 
     return protein_clusters_loc_heatmap
 
@@ -380,14 +476,20 @@ def main():
     print("Clusters assigned: ",datetime.now())
 
     #Outputs
-    cluster_histogram(protein_clusters_df,OutputDirectory)
+    generate_cluster_histogram(protein_clusters_df,OutputDirectory)
 
     #Cytoscape: Takes a long time
     #cluster_edge_list = create_cluster_edge_list(combined_clusters,protein_clusters_df)
     #output_cytoscape_files(clusters_edge_list,cluster_file,OutputDirectory)
 
-    #Generate heatmap
-    protein_clusters_loc_heatmap = prepare_heatmap(protein_clusters_meta_df,OutputDirectory)
+    #Evaluate clusters across time
+    eval_location_frequency(protein_clusters_meta_df,OutputDirectory)
+    protein_clusters_meta_df = get_avg_dates(protein_clusters_meta_df,OutputDirectory)
+    plot_clusters_avg_date(protein_clusters_meta_df,OutputDirectory)
+    plot_samples_over_time(protein_clusters_meta_df,OutputDirectory)
+
+    #Generate heatmap of cluster counts per location in order of average date of each cluster
+    protein_clusters_loc_heatmap = prepare_heatmap(protein_clusters_meta_df)
     generate_heatmap(protein_clusters_loc_heatmap,OutputDirectory)
 
     endtime = datetime.now()
