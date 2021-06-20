@@ -239,28 +239,11 @@ def find_centers(top_kmer_dict):
 
 def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,OutputDirectory):
 
-    '''
-    for i in range(len(top_kmer_dict)):
-        
-        #If locus is not center locus for this cluster
-        if(top_kmer_dict['Locus'][i] != cluster_centers[top_kmer_dict['Cluster'][i]]):
-            #Which locus does the cluster belong to
-            center_locus = cluster_centers[top_kmer_dict[i]['Cluster']]
-            #Reassign cluster value
-            top_kmer_dict['Cluster'][i] = combined_clusters[center_locus]
-        else:
-            #Reassign cluster value
-            top_kmer_dict['Cluster'][i] = combined_clusters[top_kmer_dict['Locus'][i]]
-    
-    #Convert to dataframe with only locus and cluster assignment
-    protein_clusters_df = pd.DataFrame(pd.DataFrame(top_kmer_dict), columns = ['Locus','Cluster'])
-    protein_clusters_df = protein_clusters_df.drop_duplicates(subset=['Locus'])
-    protein_clusters_df = protein_clusters_df.reset_index(drop=True)
-    '''
     unique_locus = top_kmer_dict.Locus.unique()
     #Will contain each unique locus and its new cluster assignment 
     protein_clusters_df = pd.DataFrame()
 
+    #For each locus, identify most common cluster assignment among kmers and assign the locus to that
     for i in unique_locus:
         #locus_set = pd.DataFrame(top_kmer_dict).loc[pd.DataFrame(top_kmer_dict)['Locus'] == i]
         locus_set = top_kmer_dict.loc[top_kmer_dict['Locus'] == i]
@@ -269,10 +252,22 @@ def reassign_clusters(top_kmer_dict,cluster_centers,combined_clusters,gbData,Out
         else: selected_cluster = locus_set['Cluster'].iloc[0]
         protein_clusters_df = protein_clusters_df.append({'Locus':i,'Seq_length':locus_set['Seq_length'].iloc[0],'Cluster':selected_cluster},ignore_index=True)
     
+    unique_clusters = protein_clusters_df.Cluster.unique()
+
+    #Assign new cluster labels that are continuos
+    #Set counter for new cluster label
+    new_cluster = 1
+    for i in unique_clusters:
+        protein_clusters_df.loc[protein_clusters_df.Cluster == i, 'Cluster'] = new_cluster
+        new_cluster += 1
+
+    #Convert Cluster labels to integers for readability
+    protein_clusters_df['Cluster'] = protein_clusters_df['Cluster'].astype(int)
+
     #Add metadata
     protein_clusters_meta_df = pd.concat([protein_clusters_df,gbData[['Location', 'collectionDate']].reset_index(drop=True)],axis=1)
 
-    protein_clusters_df.to_csv(OutputDirectory+"/Clusters.csv", index = False)
+    protein_clusters_df[['Locus','Cluster']].to_csv(OutputDirectory+"/Clusters.csv", index = False)
 
     return protein_clusters_df,protein_clusters_meta_df
 
@@ -284,7 +279,9 @@ def generate_cluster_histogram(protein_clusters_df,OutputDirectory):
     plt.hist(list(protein_clusters_df['Cluster']),bins = len(set(x)))
     axes = plt.gca()
     #axes.set_ylim([0,1500])
-    plt.title('Number of Proteins per Cluster', fontsize=10)
+    plt.xlabel("Cluster")
+    plt.ylabel("# Variants Assigned")
+    plt.title('Number of Protein Variants per Cluster', fontsize=10)
     plt.xticks(rotation='vertical')
     #Save figure to user specified output folder.
     plt.savefig(OutputDirectory+"/ClusterHistogram.png",bbox_inches='tight')
@@ -326,6 +323,8 @@ def eval_location_frequency(protein_clusters_meta_df,OutputDirectory):
     y = list(protein_clusters_meta_df['General_Location'])
     plt.hist(list(protein_clusters_meta_df['General_Location']),bins = len(set(y)))
     plt.xticks(rotation='vertical')
+    plt.xlabel("Location")
+    plt.ylabel("# Samples")
     plt.title('Number of Samples per Location', fontsize=10)
     plt.savefig(OutputDirectory+"/Location_Frequency.png")
     plt.clf()
@@ -366,10 +365,13 @@ def plot_clusters_avg_date(protein_clusters_meta_df,OutputDirectory):
     protein_clusters_meta_df.sort_values(by=['avgCollectionDate'],inplace=True,ascending=True)
     protein_clusters_meta_df['Cluster'] = protein_clusters_meta_df['Cluster'].astype(str)
 
+    #Plot of average date collected for each cluster of variants
     plt.scatter(protein_clusters_meta_df['Cluster'],protein_clusters_meta_df['avgCollectionDate'])
     plt.xlabel("Cluster")
     plt.ylabel("Average Date")
     plt.title('Average Date Per Cluster', fontsize=10)
+    plt.xticks(rotation='vertical')
+
     plt.savefig(OutputDirectory+"/Clusters_Average_Date.png")
     plt.clf()
 
@@ -414,11 +416,15 @@ def prepare_heatmap(protein_clusters_meta_df):
 def generate_heatmap(protein_clusters_loc_heatmap,OutputDirectory):
 
     #Generate heatmap
-    sns_plot = sns.heatmap(protein_clusters_loc_heatmap, cmap="YlGnBu")
+    sns_plot = sns.heatmap(protein_clusters_loc_heatmap, cmap="flare")
+    plt.title('Fraction of Variants Assigned to Clusters for Each Location')
     fig = sns_plot.get_figure()
     fig.savefig(OutputDirectory+"/ClusterLocation_Heatmap.png")
 
 def main():
+
+    #Manage warning about assigning new values to each dataframe
+    pd.options.mode.chained_assignment = None
 
     #Generate argument parser and define arguments
     parser = defineArguments()
