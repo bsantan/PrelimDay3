@@ -38,17 +38,21 @@ To run the Sars_Protein_Clustering.py script, a complete GenBank file OR a proce
 The format of the complete GenBank file is described in detail here: https://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html 
 
 The format of the processed GenBank file is:
+```
 LOCUS	Location	collectionDate	AAsequence
 MT079851	China	2020-01-22	MFVFLVLLPLVSSQCVN
 MW040503	Venezuela	2020-05-22	DYNYKLPDDFTGCVIAWN
 MW644687	Pakistan	2020-12-02	VLTESNKKFLPFQQFGRDIADT
 MW093498	USA:TX	2020-03-13	CVXXXXXXQLPPAYTNSFTRG
 MW093500	USA:TX	2020-03-15	MFVFLVLLPLVSSQCVNLTTRT
+```
 
 The format of the FASTA file of the reference proteins sequence is:
+```
 >ref|YP_009724390.1|:1-1273 surface glycoprotein [Severe acute respiratory syndrome coronavirus 2]
 MFVFLVLLPLVSSQCVNLTTRTQLPPAYTNSFTRGVYYPDKVFRSSVLHSTQDLFLPFFSNVTWFHAIHV
 SGTNGTKRFDNPVLPFNDGVYFASTEKSNIIRGWIFGTTLDSKTQSLLIVNNATNVVIKVCEFQFCNDPF
+```
 
 ## Expected Outputs
 
@@ -67,51 +71,61 @@ The Sars_Protein_Clustering.py script will always generate the following files:
 
 ### Clusters.csv
 A table containing each locus and the corresponding cluster assignment in the following format:
+```
 Locus	Cluster	
 MT079851	1	
 MW040503	2	
 MW644687	3	
 MW093498	4	
 MW093500	1
+```
 
 The program will also output a histogram of this information as ClusterHistogram.png. 
 
 ### Clusters_Meta.csv
 A table containing each locus and the corresponding cluster assignment along with metadata in the following format:	
+```
 Cluster	Locus	Seq_length	Location	collectionDate	General_Location	avgCollectionDate
 1	MT079851	1273	China	1/22/20 0:00	China	7/22/20 12:00
 2	MW040503	336	Venezuela	5/22/20 0:00	Venezuela	5/22/20 0:00
 3	MW644687	30	Pakistan	12/2/20 0:00	Pakistan	12/2/20 0:00
 4	MW093498	1259	USA:TX	3/13/20 0:00	USA	3/13/20 0:00
 1	MW093500	1273	USA:TX	3/15/20 0:00	USA	7/22/20 12:00
+```
 
 ### Clusters_Heatmap_All.csv and Clusters_Heatmap_notUS.csv
 A table containing the normalized frequency of cluster assignments (top row) for each location (left column), where clusters are sorted by average date collected among samples assigned. The file with "_All" includes all locations, and the table with "_notUS" includes only locations excluding "USA" in the designated collection location. Both tables are in the following format:
+```
 Location	4	2	5	8	6	9	1	7	3
 China							1.00		
 Japan							1.00		
 Pakistan									1.00
 USA:TX	0.02		0.11	0.02	0.02	0.02	0.77	0.02	
-Venezuela		1.00							
+Venezuela		1.00	
+```						
 
 The program will also output heatmaps of this information for visualization as ClusterLocation_HeatmapAll.png and ClusterLocation_HeatmapNotUS.png.
 
 ### Clusters_Sequence_Similarities.csv
 A table showing the sequence similarity of each cluster center with the reference protein sequence provided as OGPROTEINFASTA in the following format:
+```
 Cluster	Similarity
 1	1
 2	0.003729024
 3	0.046047583
 4	0.987361769
 5	0.935882119
+```
 
 The program will also output a plot of this information including only the largest 10 clusters in order of average date collected as Sequence_Similarity_top10.png. 
 
 ### Other plots for visualization
 
+```
 - Clusters_Average_Date.png: a plot showing the average date collected for samples assigned to each cluster 
 - Date_Frequency.png: a histogram showing the number of samples collected across each date
 - Location_Frequency.png: a histogram showing the number of samples collected across each general location (most often country)
+```
 
 
 ### Optional Arguments
@@ -123,6 +137,7 @@ By default, the program will use kmers of length 10 to do pairwise comparisons b
 ```
 
 Additionally, the program will select the 10 kmers from each sequence to do the pairwise comparisons. However you can change the number of kmers selected by including the following optional argument:
+
 ```
 --num-kmers-per-sequence NUMKMERSPERSEQUENCE (default 10)
 ```
