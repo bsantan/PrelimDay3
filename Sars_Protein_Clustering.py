@@ -527,7 +527,7 @@ def main():
     OutputDirectory = args.OutputDirectory
 
     #Command expected to execute the script
-    cmd = "--gb-original-file %s --output-processed-file %s --gb-processed-file %s --og-protein-fasta %s --kmer-size %i --num-kmers-per-sequence %i --output-directory %s" % (GbOriginalFile,GbProcessedFile,OutputProcessedFile,OgProteinFasta,KmerSize,NumKmersPerSequence,OutputDirectory)
+    cmd = "--gb-original-file %s --gb-processed-file %s --og-protein-fasta %s --kmer-size %i --num-kmers-per-sequence %i --output-directory %s" % (GbOriginalFile,GbProcessedFile,OgProteinFasta,KmerSize,NumKmersPerSequence,OutputDirectory)
 
     starttime = datetime.now()
     print("Sars_Protein_Clustering Start Time: ",starttime)
@@ -548,6 +548,8 @@ def main():
         #Output resulting processed file if specified
         if args.OutputProcessedFile:
             generate_processed_file(gbData_og,OutputDirectory)
+        else:
+            print("sarsS_new.gb.processed.tsv will not be output.")
 
     #Use processed genBank file for analysis if provided
     else:
