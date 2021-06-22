@@ -1,6 +1,6 @@
 # Clustering Sars-CoV-2 Protein Sequences
 
-The Sars_Protein_Clustering.py is an algorithm that takes a GenBank file consisting of complete and partial sequences of viral isolates and clusters the surface glycoprotein ("S") sequences according to sequence similarity. The program can either be input a complete GenBank file with all records of a given query, after which it will extract the "S" proteins of interest, or a processed file with the "S" protein sequences already extracted. The algorithm will apply a Kmer based method to assign each variant to a cluster, and will output the result of these cluster assignments to a csv file. The program will also expand the results of the analysis with several visualization techniques across time and space of the protein variants given.
+The Sars_Protein_Clustering.py is an algorithm that takes a GenBank file consisting of complete and partial sequences of viral isolates and clusters the surface glycoprotein ("S") sequences according to sequence similarity. The program can either be input a complete GenBank file with all records of a given query, after which it will extract the "S" proteins of interest, or a processed file with the "S" protein sequences already extracted. When a complete GenBank file is given, the program will only identify S protein sequences, however with an already processed file the algorithm is not protein specific.
 
 ## Getting Started
 
@@ -41,15 +41,11 @@ The format of the processed GenBank file is:
 ```
 LOCUS	Location	collectionDate	AAsequence
 MT079851	China	2020-01-22	MFVFLVLLPLVSSQCVN
-MW040503	Venezuela	2020-05-22	DYNYKLPDDFTGCVIAWN
-MW644687	Pakistan	2020-12-02	VLTESNKKFLPFQQFGRDIADT
-MW093498	USA:TX	2020-03-13	CVXXXXXXQLPPAYTNSFTRG
-MW093500	USA:TX	2020-03-15	MFVFLVLLPLVSSQCVNLTTRT
 ```
 
 The format of the FASTA file of the reference proteins sequence is:
 ```
->ref|YP_009724390.1|:1-1273 surface glycoprotein [Severe acute respiratory syndrome coronavirus 2]
+>FASTA_ID
 MFVFLVLLPLVSSQCVNLTTRTQLPPAYTNSFTRGVYYPDKVFRSSVLHSTQDLFLPFFSNVTWFHAIHV
 SGTNGTKRFDNPVLPFNDGVYFASTEKSNIIRGWIFGTTLDSKTQSLLIVNNATNVVIKVCEFQFCNDPF
 ```
@@ -74,10 +70,6 @@ A table containing each locus and the corresponding cluster assignment in the fo
 ```
 Locus	Cluster	
 MT079851	1	
-MW040503	2	
-MW644687	3	
-MW093498	4	
-MW093500	1
 ```
 
 The program will also output a histogram of this information as ClusterHistogram.png. 
@@ -87,10 +79,6 @@ A table containing each locus and the corresponding cluster assignment along wit
 ```
 Cluster	Locus	Seq_length	Location	collectionDate	General_Location	avgCollectionDate
 1	MT079851	1273	China	1/22/20 0:00	China	7/22/20 12:00
-2	MW040503	336	Venezuela	5/22/20 0:00	Venezuela	5/22/20 0:00
-3	MW644687	30	Pakistan	12/2/20 0:00	Pakistan	12/2/20 0:00
-4	MW093498	1259	USA:TX	3/13/20 0:00	USA	3/13/20 0:00
-1	MW093500	1273	USA:TX	3/15/20 0:00	USA	7/22/20 12:00
 ```
 
 ### Clusters_Heatmap_All.csv and Clusters_Heatmap_notUS.csv
@@ -98,10 +86,6 @@ A table containing the normalized frequency of cluster assignments (top row) for
 ```
 Location	4	2	5	8	6	9	1	7	3
 China							1.00		
-Japan							1.00		
-Pakistan									1.00
-USA:TX	0.02		0.11	0.02	0.02	0.02	0.77	0.02	
-Venezuela		1.00	
 ```						
 
 The program will also output heatmaps of this information for visualization as ClusterLocation_HeatmapAll.png and ClusterLocation_HeatmapNotUS.png.
@@ -111,10 +95,6 @@ A table showing the sequence similarity of each cluster center with the referenc
 ```
 Cluster	Similarity
 1	1
-2	0.003729024
-3	0.046047583
-4	0.987361769
-5	0.935882119
 ```
 
 The program will also output a plot of this information including only the largest 10 clusters in order of average date collected as Sequence_Similarity_top10.png. 
