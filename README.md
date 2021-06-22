@@ -52,15 +52,15 @@ SGTNGTKRFDNPVLPFNDGVYFASTEKSNIIRGWIFGTTLDSKTQSLLIVNNATNVVIKVCEFQFCNDPF
 
 ## Expected Outputs
 
-The Sars_Protein_Clustering.py script will generate the following file when the --output-processed-file is enabled (default). 
+The Sars_Protein_Clustering.py script will not generate the following file by default. 
 
 ### sarsS_new.gb.processed.tsv
 This file mimics the structure of the processed GenBank (GBPROCESSEDFILE) above.
 
-To disable this option, include the following command: 
+To enable this option, include the following command: 
 
 ```
---output-processed-file false
+--output-processed-file
 ```
 
 The Sars_Protein_Clustering.py script will always generate the following files:
